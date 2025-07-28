@@ -24,22 +24,3 @@ class BlockNode:
         return (self.content == other.content and
                 self.block_type == other.block_type)
 
-    def block_to_block_type(text):
-       #heading need tommatch  (\#{1,6} .+)
-        text = text.strip()
-        if not text:
-            return BlockType.PARAGRAPH
-
-        # Check for headings
-        if re.match(r"^#{1,6} .+", text):
-            return BlockType.HEADING
-        elif text.startswith("```"):
-            return BlockType.CODE
-        elif text.startswith("> "):
-            return BlockType.QUOTE
-        elif text.startswith("- ") or text.startswith("* "):
-            return BlockType.UNORDERED_LIST
-        elif text[0].isdigit() and text[1] == '.':
-            return BlockType.ORDERED_LIST
-        else:
-            return BlockType.PARAGRAPH

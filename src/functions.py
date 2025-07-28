@@ -1,8 +1,12 @@
-from htmlnode import LeafNode
+from htmlnode import LeafNode, ParentNode
 from textnode import TextNode, TextType
+from blocknode import BlockNode,BlockType
+import re
+
+
 
 def text_node_to_html_node(text_node):
-    if text_node.text_type == TextType.PLAIN:
+    if text_node.text_type in (TextType.PLAIN, TextType.TEXT):
         return LeafNode(value=text_node.text, tag=None)
     elif text_node.text_type == TextType.BOLD:
         return LeafNode(value=text_node.text, tag="b")
@@ -144,3 +148,56 @@ def markdown_to_blocks(text):
     # Split on two or more newlines, strip whitespace from each block, and filter out empty blocks
     blocks = [block.strip() for block in text.split("\n\n") if block.strip()]
     return blocks
+
+def block_to_block_type(text):
+    #heading need tommatch  (\#{1,6} .+)
+    text = text.strip()
+    if not text:
+        return BlockType.PARAGRAPH
+
+    # Check for headings
+    if re.match(r"^#{1,6} .+", text):
+        return BlockType.HEADING
+    elif text.startswith("```"):
+        return BlockType.CODE
+    elif text.startswith("> "):
+        return BlockType.QUOTE
+    elif text.startswith("- ") or text.startswith("* "):
+        return BlockType.UNORDERED_LIST
+    elif text[0].isdigit() and text[1] == '.':
+        return BlockType.ORDERED_LIST
+    else:
+        return BlockType.PARAGRAPH
+
+def markdown_to_html_node(markdown):
+    blocks = markdown_to_blocks(markdown)
+    html_nodes = []
+    for block in blocks:
+        block_type = block_to_block_type(block)
+        if block_type == BlockType.PARAGRAPH:
+            # Join lines in a paragraph with a space and collapse multiple spaces
+            block = block.replace('\n', ' ')
+            block = re.sub(r'\s+', ' ', block).strip()
+            text_nodes = text_to_textnodes(block)
+            children = [text_node_to_html_node(node) for node in text_nodes]
+            html_nodes.append(ParentNode("p", children))
+        elif block_type == BlockType.HEADING:
+            level = block.count("#")
+            content = block[level:].strip()
+            html_nodes.append(LeafNode(value=content, tag=f"h{level}"))
+        elif block_type == BlockType.CODE:
+            code_content = block[3:].strip()  # Remove the ``` at the start
+            html_nodes.append(LeafNode(value=code_content, tag="pre"))
+        elif block_type == BlockType.QUOTE:
+            quote_content = block[2:].strip()  # Remove the > at the start
+            html_nodes.append(LeafNode(value=quote_content, tag="blockquote"))
+        elif block_type == BlockType.UNORDERED_LIST:
+            items = [item.strip() for item in block.split("\n") if item.strip()]
+            for item in items:
+                html_nodes.append(LeafNode(value=item[2:], tag="li"))
+        elif block_type == BlockType.ORDERED_LIST:
+            items = [item.strip() for item in block.split("\n") if item.strip()]
+            for item in items:
+                html_nodes.append(LeafNode(value=item[item.index('.') + 1:].strip(), tag="li"))
+    # Wrap all nodes in a div
+    return ParentNode("div", html_nodes)
