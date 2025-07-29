@@ -153,6 +153,7 @@ venv.bak/
 
 # mkdocs documentation
 /site
+/public
 
 # mypy
 .mypy_cache/
@@ -205,3 +206,4 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
