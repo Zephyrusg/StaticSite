@@ -1,7 +1,7 @@
 import unittest
 
 from textnode import TextNode, TextType
-from functions import text_node_to_html_node, split_nodes_delimiter, extract_markdown_images, extract_markdown_links, split_nodes_image, split_nodes_link, text_to_textnodes, markdown_to_blocks, markdown_to_html_node, split_nodes_delimiter, text_node_to_html_node, block_to_block_type
+from functions import text_node_to_html_node, split_nodes_delimiter, extract_markdown_images, extract_markdown_links, split_nodes_image, split_nodes_link, text_to_textnodes, markdown_to_blocks, markdown_to_html_node, split_nodes_delimiter, text_node_to_html_node, block_to_block_type, extract_title
 from htmlnode import LeafNode, ParentNode
 from blocknode import BlockNode, BlockType
 
@@ -191,6 +191,29 @@ This is the same paragraph on a new line
             ],
         )
 
+    def test_markdown_to_blocks_newlines(self):
+        md = """
+This is **bolded** paragraph
+
+
+
+
+This is another paragraph with _italic_ text and `code` here
+This is the same paragraph on a new line
+
+- This is a list
+- with items
+"""
+        blocks = markdown_to_blocks(md)
+        self.assertEqual(
+            blocks,
+            [
+                "This is **bolded** paragraph",
+                "This is another paragraph with _italic_ text and `code` here\nThis is the same paragraph on a new line",
+                "- This is a list\n- with items",
+            ],
+        )
+
     def test_paragraphs(self):
         md = """
     This is **bolded** paragraph
@@ -207,3 +230,52 @@ This is the same paragraph on a new line
             html,
             "<div><p>This is <b>bolded</b> paragraph text in a p tag here</p><p>This is another paragraph with <i>italic</i> text and <code>code</code> here</p></div>",
         )
+
+    def test_mutiple_headings(self):
+        self.maxDiff = None
+        md = """
+# Heading 1
+
+```
+print("Hello, World!")
+```
+
+## Heading 2
+
+> This is a quote
+>
+> from a quote
+
+### Heading 3
+
+- unordered list item 1
+- unordered list item 2
+- unordered list item 3
+
+1. ordered list item 1
+2. ordered list item 2
+3. ordered list item 3
+"""
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><h1>Heading 1</h1><pre><code>print(&quot;Hello, World!&quot;)</code></pre><h2>Heading 2</h2><blockquote>This is a quote<br>from a quote</blockquote><h3>Heading 3</h3><ul><li>unordered list item 1</li><li>unordered list item 2</li><li>unordered list item 3</li></ul><ol><li>ordered list item 1</li><li>ordered list item 2</li><li>ordered list item 3</li></ol></div>",
+        )
+        
+    def test_extract_title_from_markdown(self):
+        md = """
+# Title
+
+This is a paragraph.
+"""
+        title = extract_title(md)
+        self.assertEqual(title, "Title")
+    
+    def test_extract_title_no_heading(self):
+        md = """
+This is a paragraph without a title.
+"""
+        with self.assertRaises(Exception):
+            extract_title(md)
+

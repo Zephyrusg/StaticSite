@@ -1,6 +1,8 @@
 from htmlnode import LeafNode, ParentNode
 from textnode import TextNode, TextType
 from blocknode import BlockNode,BlockType
+import html
+import os
 import re
 
 
@@ -13,7 +15,9 @@ def text_node_to_html_node(text_node):
     elif text_node.text_type == TextType.ITALIC:
         return LeafNode(value=text_node.text, tag="i")
     elif text_node.text_type == TextType.CODE:
-        return LeafNode(value=text_node.text, tag="code")
+        print("Escaping:", repr(text_node.text))
+        escaped = html.escape(text_node.text)
+        return LeafNode(value=escaped, tag="code")
     elif text_node.text_type == TextType.LINK:
         return LeafNode(value=text_node.text, tag="a", props={"href": text_node.url})
     elif text_node.text_type == TextType.IMAGE:
@@ -142,12 +146,15 @@ def text_to_textnodes(text):
 
     return nodes
 
-def markdown_to_blocks(text):
-    if not text:
-        return []
-    # Split on two or more newlines, strip whitespace from each block, and filter out empty blocks
-    blocks = [block.strip() for block in text.split("\n\n") if block.strip()]
-    return blocks
+def markdown_to_blocks(markdown):
+    blocks = markdown.split("\n\n")
+    filtered_blocks = []
+    for block in blocks:
+        if block == "":
+            continue
+        block = block.strip()
+        filtered_blocks.append(block)
+    return filtered_blocks
 
 def block_to_block_type(text):
     #heading need tommatch  (\#{1,6} .+)
@@ -169,35 +176,117 @@ def block_to_block_type(text):
     else:
         return BlockType.PARAGRAPH
 
+def text_to_children(text):
+    text_nodes = text_to_textnodes(text)
+    children = []
+    for text_node in text_nodes:
+        html_node = text_node_to_html_node(text_node)
+        children.append(html_node)
+    return children
+
 def markdown_to_html_node(markdown):
     blocks = markdown_to_blocks(markdown)
-    html_nodes = []
+    NodeChildren = []
+
     for block in blocks:
+        if not block.strip():
+            continue
         block_type = block_to_block_type(block)
+        
         if block_type == BlockType.PARAGRAPH:
-            # Join lines in a paragraph with a space and collapse multiple spaces
-            block = block.replace('\n', ' ')
-            block = re.sub(r'\s+', ' ', block).strip()
-            text_nodes = text_to_textnodes(block)
-            children = [text_node_to_html_node(node) for node in text_nodes]
-            html_nodes.append(ParentNode("p", children))
+            # Convert to child nodes, e.g. via text_to_children, then wrap in ParentNode("p")
+            lines = block.split("\n")
+            paragraph = " ".join(lines)
+            normalized_paragraph = " ".join(paragraph.split())
+            children = text_to_children(normalized_paragraph)
+            NodeChildren.append(ParentNode(tag="p", children=children))
+        
         elif block_type == BlockType.HEADING:
-            level = block.count("#")
-            content = block[level:].strip()
-            html_nodes.append(LeafNode(value=content, tag=f"h{level}"))
+            level = 0
+            for char in block:
+                if char == "#":
+                    level += 1
+                else:
+                    break
+            if level + 1 >= len(block):
+                raise ValueError(f"invalid heading level: {level}")
+            text = block[level + 1 :]
+            children = text_to_children(text)
+            NodeChildren.append(ParentNode(tag=f"h{level}", children=children))
+
+
         elif block_type == BlockType.CODE:
-            code_content = block[3:].strip()  # Remove the ``` at the start
-            html_nodes.append(LeafNode(value=code_content, tag="pre"))
+            if not block.startswith("```") or not block.endswith("```"):
+                raise ValueError("invalid code block")
+            lines = block.split("\n")
+            code_content = "\n".join(lines[1:-1])
+            escaped = html.escape(code_content)
+            code_leaf = LeafNode(value=escaped, tag="code")
+            pre = ParentNode("pre", [code_leaf])
+            NodeChildren.append(pre)
+
         elif block_type == BlockType.QUOTE:
-            quote_content = block[2:].strip()  # Remove the > at the start
-            html_nodes.append(LeafNode(value=quote_content, tag="blockquote"))
+            lines = block.split("\n")
+            new_lines = []
+            for line in lines:
+                if not line.strip():
+                    continue
+                if not line.startswith(">"):
+                    raise ValueError("invalid quote block")
+                content = (line.lstrip(">").strip())
+                if content:
+                    new_lines.append(content)
+            content = "<br>".join(new_lines)
+            children = text_to_children(content)
+            NodeChildren.append(ParentNode("blockquote", children))
+
         elif block_type == BlockType.UNORDERED_LIST:
-            items = [item.strip() for item in block.split("\n") if item.strip()]
+            items = block.split("\n")
+            html_items = []
             for item in items:
-                html_nodes.append(LeafNode(value=item[2:], tag="li"))
+                text = item[2:]
+                children = text_to_children(text)
+                html_items.append(ParentNode("li", children))
+            NodeChildren.append(ParentNode("ul", html_items))   
+
         elif block_type == BlockType.ORDERED_LIST:
-            items = [item.strip() for item in block.split("\n") if item.strip()]
+            items = block.split("\n")
+            html_items = []
             for item in items:
-                html_nodes.append(LeafNode(value=item[item.index('.') + 1:].strip(), tag="li"))
-    # Wrap all nodes in a div
-    return ParentNode("div", html_nodes)
+                text = item[item.index(".") + 1:].strip()
+                children = text_to_children(text)
+                html_items.append(ParentNode("li", children))
+            NodeChildren.append(ParentNode("ol", html_items))
+
+        # ...any more block types...
+
+    return ParentNode("div", NodeChildren, None)
+
+def extract_title(markdown):
+    """
+    Extract the title from the markdown text.
+    The title is assumed to be the first heading (h1) in the markdown.
+    If no h1 is found, return None.
+    """
+    blocks = markdown_to_blocks(markdown)
+    for block in blocks:
+        if block_to_block_type(block) == BlockType.HEADING and block.startswith("# "):
+            return block[2:].strip()  # Return the text after the '# '
+    raise Exception("No title found in the markdown text.")
+
+def generate_page(from_path, template_path, dest_path):
+    print(f"Generating page from {from_path} using template {template_path} to {dest_path}")
+    with open(from_path, 'r') as f:
+        content = f.read()
+    with open(template_path, 'r') as f:
+        template = f.read()
+    # Replace placeholders in the template with actual content
+    html_content = markdown_to_html_node(content).to_html()
+    title = extract_title(content)
+    template = template.replace("{{ Content }}", html_content)
+    template = template.replace("{{ Title }}", title)
+    #Write the new full HTML page to a file at dest_path. Be sure to create any necessary directories if they don't exist.
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    with open(dest_path, 'w') as f:
+        f.write(template)
+        print(f"Page generated successfully at {dest_path}")
