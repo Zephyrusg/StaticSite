@@ -290,3 +290,13 @@ def generate_page(from_path, template_path, dest_path):
     with open(dest_path, 'w') as f:
         f.write(template)
         print(f"Page generated successfully at {dest_path}")
+
+def generate_pages_recursive(dir_path_content, template_path, dest_dir_path):
+   #recursively gerate pages from dir and its sub dirs
+    for root, dirs, files in os.walk(dir_path_content):
+        for file in files:
+            if file.endswith(".md"):
+                from_path = os.path.join(root, file)
+                relative_path = os.path.relpath(from_path, dir_path_content)
+                dest_path = os.path.join(dest_dir_path, relative_path.replace(".md", ".html"))
+                generate_page(from_path, template_path, dest_path)
