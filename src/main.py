@@ -9,7 +9,7 @@ def main(args):
     else:
         basepath = "/"
 
-    copy_static_to_public("static", "public", verbose=True)
+    copy_static_to_public("static", "docs", verbose=True)
     generate_pages_recursive("content", "template.html", "docs", basepath)
     #generate_page("content/index.md", "template.html", "public/index.html")
     #generate_page("content/blog/glorfindel/index.md", "template.html", "public/blog/glorfindel/index.html")
