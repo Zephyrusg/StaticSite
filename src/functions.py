@@ -192,7 +192,7 @@ def markdown_to_html_node(markdown):
         if not block.strip():
             continue
         block_type = block_to_block_type(block)
-        
+
         if block_type == BlockType.PARAGRAPH:
             # Convert to child nodes, e.g. via text_to_children, then wrap in ParentNode("p")
             lines = block.split("\n")
@@ -200,7 +200,7 @@ def markdown_to_html_node(markdown):
             normalized_paragraph = " ".join(paragraph.split())
             children = text_to_children(normalized_paragraph)
             NodeChildren.append(ParentNode(tag="p", children=children))
-        
+
         elif block_type == BlockType.HEADING:
             level = 0
             for char in block:
@@ -247,7 +247,7 @@ def markdown_to_html_node(markdown):
                 text = item[2:]
                 children = text_to_children(text)
                 html_items.append(ParentNode("li", children))
-            NodeChildren.append(ParentNode("ul", html_items))   
+            NodeChildren.append(ParentNode("ul", html_items))
 
         elif block_type == BlockType.ORDERED_LIST:
             items = block.split("\n")
@@ -283,6 +283,7 @@ def generate_page(from_path, template_path, dest_path, basepath):
     # Replace placeholders in the template with actual content
     html_content = markdown_to_html_node(content).to_html()
     title = extract_title(content)
+    template = template.replace("{{ Title }}", title)
     template = template.replace("{{ Content }}", html_content)
     template = template.replace("href=\"/", f"href=\"{basepath}")
     template = template.replace("src=\"/", f"src=\"{basepath}")
